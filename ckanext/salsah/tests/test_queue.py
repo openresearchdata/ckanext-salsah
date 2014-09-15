@@ -14,14 +14,6 @@ class TestSalsahHarvester(SalsahHarvester):
     def info(self):
         return {'name': 'test', 'title': 'test', 'description': 'test'}
 
-    def gather_stage(self, harvest_job):
-
-        ids = []
-
-        print "mama"
-
-        return ids
-
     def import_stage(self, harvest_object):
         return False
 
@@ -92,7 +84,7 @@ class TestHarvestQueue(object):
 
         queue.gather_callback(consumer, *reply)
 
-        reply = consumer_fetch.basic_get(queue='ckan.harvest.fetch')
-        queue.fetch_callback(consumer_fetch, *reply)
+        # reply = consumer_fetch.basic_get(queue='ckan.harvest.fetch')
+        # queue.fetch_callback(consumer_fetch, *reply)
 
         assert 1 == 2
