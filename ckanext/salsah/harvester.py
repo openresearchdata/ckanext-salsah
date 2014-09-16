@@ -1,7 +1,7 @@
 #coding: utf-8
 
 from ckanext.harvest.harvesters.base import HarvesterBase
-from pprint import pprint
+from pprint import pprint, pformat
 import json
 import urllib2
 import logging
@@ -24,31 +24,47 @@ class SalsahHarvester(HarvesterBase):
             'description': 'SALSAH Harvester'
         }
 
-    def _get_title(self, res):
+    def _get(self, resource, *args):
+        """
+        Try to return the value for key(s).
+        If no key exists log the resource and the last key.
+        """
+        for key in args[:-1]:
+            try:
+                return resource[key]
+            except KeyError:
+                pass
         try:
-            return res['dc:title']
+            return resource[args[-1]]
         except KeyError:
-            return res['dc:description']
+            log.error('Resource does not contain `%s`:\n%s', args[-1], pformat(resource))
+            return ''
 
     def gather_stage(self, harvest_job):
         log.debug('In SalsahHarvester gather_stage')
+        ids = []
         try:
             req = urllib2.Request(self.API_URL)
             handle = urllib2.urlopen(req)
         except urllib2.HTTPError, e:
-            log.debug('HTTP Error accessing %s: %s.' % (self.API_URL, e.code))
+            log.error('HTTP Error accessing %s: %s.' % (self.API_URL, e.code))
             return []
         else:
             projects = json.load(handle)['projects']
             for project in projects:
                 log.debug(project['project_info'])
+                # TODO: add dataset for project
                 for resource in project['project_resources']:
+                    pages = resource.get('pages', [])
+                    for page in pages:
+                        pass
+                        # do we add JSON resources for pages?
                     metadata = {
-                        'datasetID': resource['resid'],
-                        'title': self._get_title(resource),
-                        # 'url': resource['salsah_url'],
-                        # 'notes': resource['dc:description'] if resource.get('dc:description') else ''
-                        # 'author': ,
+                        'datasetID': self._get(resource, 'resid'),
+                        'title': self._get(resource, 'dc:title', 'dokubib:titel'),
+                        'url': self._get(resource, 'salsah_url', 'salsah:uri'),
+                        # 'notes': self._get(resource, 'dc:description'),
+                        'author': self._get(resource, 'dc:creator'),
                         # 'maintainer': ,
                         # 'maintainer_email': ,
                         # 'license_id': 'cc-zero',
