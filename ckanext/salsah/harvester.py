@@ -61,12 +61,13 @@ class SalsahHarvester(HarvesterBase):
                     for page in pages:
                         pass
                         # do we add JSON resources for pages?
+                    
                     metadata = {
                         'datasetID': self._get(resource, 'resid'),
                         'title': self._get(resource, 'dc:title', 'dokubib:titel'),
                         'url': self._get(resource, 'salsah_url', 'salsah:uri'),
                         # 'notes': self._get(resource, 'dc:description'),
-                        'author': self._get(resource, 'dc:creator'),
+                        'author': self._get(resource, 'dc:creator', 'dokubib:urheber'),
                         # 'maintainer': ,
                         # 'maintainer_email': ,
                         # 'license_id': 'cc-zero',
@@ -77,6 +78,14 @@ class SalsahHarvester(HarvesterBase):
                         #         ('key', 'value)))
                         # ]
                     }
+
+                    if type(metadata['author']) == dict:
+                        #pprint(metadata['author'])
+                        if 'salsah:firstname' in metadata['author']:
+                            metadata['author'] = metadata['author']['salsah:lastname'] + ', ' + metadata['author']['salsah:firstname']
+                        else:
+                            metadata['author'] = metadata['author']['salsah:lastname']
+
                     pprint(metadata)
 
                     obj = HarvestObject(
