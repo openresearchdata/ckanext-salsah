@@ -6,6 +6,8 @@ import json
 import urllib2
 import logging
 
+from ckanext.harvest.model import HarvestObject
+
 log = logging.getLogger(__name__)
 
 
@@ -76,6 +78,15 @@ class SalsahHarvester(HarvesterBase):
                         # ]
                     }
                     pprint(metadata)
+
+                    obj = HarvestObject(
+                        guid=metadata['datasetID'],
+                        job=harvest_job,
+                        content=json.dumps(metadata)
+                    )
+                    obj.save()
+                    log.debug('adding ' + metadata['datasetID'] + ' to the queue')
+                    ids.append(obj.id) 
         return ids
 
     def fetch_stage(self, harvest_object):
