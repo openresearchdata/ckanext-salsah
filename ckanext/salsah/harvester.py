@@ -6,7 +6,11 @@ import json
 import urllib2
 import logging
 
+from ckan import model
+from ckan.model import Session, Package
+from ckan.logic import get_action
 from ckanext.harvest.model import HarvestObject
+from ckan.lib.munge import munge_title_to_name
 
 log = logging.getLogger(__name__)
 
@@ -17,6 +21,30 @@ class SalsahHarvester(HarvesterBase):
     '''
 
     API_URL = "http://salsah.org/api/ckan?limit=3"
+    
+    ORGANIZATION = {
+        'de': {
+            'name': 'Digital Humanities Lab',
+            'description': 'Description of Digital Humanities Lab',
+            'website': 'http://www.dhlab.unibas.ch/index.php/de/'
+        },
+        'fr': {
+            'name': 'Digital Humanities Lab',
+            'description': 'Description of Digital Humanities Lab'
+        },
+        'it': {
+            'name': 'Digital Humanities Lab',
+            'description': 'Description of Digital Humanities Lab'
+        },
+        'en': {
+            'name': 'Digital Humanities Lab',
+            'description': 'Description of Digital Humanities Lab'
+        }
+    }
+
+    config = {
+        'user': u'harvest'
+    }
 
     def info(self):
 
@@ -42,6 +70,34 @@ class SalsahHarvester(HarvesterBase):
             log.error('Resource does not contain `%s`:\n%s', args[-1], pformat(resource))
             return ''
 
+    def _find_or_create_groups(self, context, groups):
+        group_ids = []
+        for group_name in groups:
+            data_dict = {
+                'id': group_name,
+                'name': munge_title_to_name(group_name),
+                'title': group_name
+            }
+            try:
+                group = get_action('group_show')(context, data_dict)
+                log.debug('group_show action went OK')
+            except:
+                group = get_action('group_create')(context, data_dict)
+                log.info('created the group ' + group['id'])
+            group_ids.append(group['id'])
+        return group_ids
+
+    def _generate_resources_dict_array(self, resource):
+        resource_list = []
+        pages = resource.get('pages', [])
+        for page in pages:
+            resource_list.append({
+                'name': self._get(page, 'incunabula:pagenum'),
+                'resource_type': 'page',
+                'url': self._get(page, 'salsah_url')
+            })
+        return resource_list
+
     def gather_stage(self, harvest_job):
         log.debug('In SalsahHarvester gather_stage')
         ids = []
@@ -55,15 +111,44 @@ class SalsahHarvester(HarvesterBase):
             projects = json.load(handle)['projects']
             for project in projects:
                 log.debug(project['project_info'])
-                # TODO: add dataset for project
+                # add dataset for project
+                metadata = {
+                    'datasetID': project['project_info'].get('shortname'),
+                    'title': project['project_info'].get('longname'),
+                    'url': 'http://salsah.org/',
+                    'notes': "This project is part of SALSAH.",
+                    # 'author': ,
+                    # 'maintainer': ,
+                    # 'maintainer-email': ,
+                    # 'license_id': ,
+                    # 'license_url': ,
+                    # 'tags': ,
+                    # 'resources': ,
+                    'groups': [project['project_info'].get('ckan_category')],
+                    'extras': [
+                        ('level', 'Project')
+                    ]
+                }
+                
+                pprint(metadata)
+                
+                obj = HarvestObject(
+                    guid=metadata['datasetID'],
+                    job=harvest_job,
+                    content=json.dumps(metadata)
+                )
+                obj.save()
+                log.debug('adding ' + metadata['datasetID'] + ' to the queue')
+                ids.append(obj.id)
+
                 for resource in project['project_resources']:
                     pages = resource.get('pages', [])
                     for page in pages:
-                        pass
                         # do we add JSON resources for pages?
-                    
+                        pass
+
                     metadata = {
-                        'datasetID': self._get(resource, 'resid'),
+                        'datasetID': self._get(resource, 'resid').zfill(8),
                         'title': self._get(resource, 'dc:title', 'dokubib:titel'),
                         'url': self._get(resource, 'salsah_url', 'salsah:uri'),
                         # 'notes': self._get(resource, 'dc:description'),
@@ -73,14 +158,15 @@ class SalsahHarvester(HarvesterBase):
                         # 'license_id': 'cc-zero',
                         # 'license_url': 'http://opendefinition.org/licenses/cc-zero/',
                         # 'tags': ,
-                        # 'resources': ,
-                        # 'extras': [
-                        #         ('key', 'value)))
-                        # ]
+                        'resources': self._generate_resources_dict_array(resource),
+                        'groups': [],
+                        'extras': [
+                                ('level', 'Resource'),
+                                ('parent', project['project_info'].get('shortname'))
+                        ]
                     }
 
                     if type(metadata['author']) == dict:
-                        #pprint(metadata['author'])
                         if 'salsah:firstname' in metadata['author']:
                             metadata['author'] = metadata['author']['salsah:lastname'] + ', ' + metadata['author']['salsah:firstname']
                         else:
@@ -100,8 +186,59 @@ class SalsahHarvester(HarvesterBase):
 
     def fetch_stage(self, harvest_object):
         log.debug('In SalsahHarvester fetch_stage')
-        return True
+
+        # Get the URL
+        datasetID = json.loads(harvest_object.content)['datasetID']
+        log.debug(harvest_object.content)
+
+        # Get contents
+        try:
+            harvest_object.save()
+            log.debug('successfully processed ' + datasetID)
+            return True
+        except Exception, e:
+            log.exception(e)
 
     def import_stage(self, harvest_object):
         log.debug('In SalsahHarvester import_stage')
-        return True
+
+        if not harvest_object:
+            log.error('No harvest object received')
+            return False
+
+
+        try:
+            package_dict = json.loads(harvest_object.content)
+            package_dict['id'] = harvest_object.guid
+            package_dict['name'] = package_dict[u'datasetID']
+
+            user = model.User.get(self.config['user'])
+            context = {
+                'model': model,
+                'session': Session,
+                'user': self.config['user']
+            }
+            log.debug(context)
+
+            # Find or create group the dataset should get assigned to
+            package_dict['groups'] = [] #self._find_or_create_groups(context, package_dict['groups'])
+            log.debug('Found or created groups.')
+
+            # Insert or update the package
+            package = model.Package.get(package_dict['id'])
+            model.PackageRole(
+                package=package,
+                user=user,
+                role=model.Role.ADMIN
+            )
+
+            self._create_or_update_package(
+                package_dict,
+                harvest_object
+            )
+
+            Session.commit()
+            
+        except Exception as e:
+            log.exception(e)
+            raise
