@@ -81,6 +81,26 @@ class SalsahHarvester(HarvesterBase):
             })
         return resource_list
 
+    def _find_or_create_groups(self, groups, context):
+        log.debug('Group names: %s' % groups)
+        group_ids = []
+        for group_name in groups:
+            data_dict = {
+                'id': group_name,
+                'name': munge_title_to_name(group_name),
+                'title': group_name
+            }
+            try:
+                group = get_action('group_show')(context, data_dict)
+                log.info('found the group ' + group['id'])
+            except:
+                group = get_action('group_create')(context, data_dict)
+                log.info('created the group ' + group['id'])
+            group_ids.append(group['id'])
+
+        log.debug('Group ids: %s' % group_ids)
+        return group_ids
+
     def gather_stage(self, harvest_job):
         log.debug('In SalsahHarvester gather_stage')
         ids = []
@@ -142,7 +162,7 @@ class SalsahHarvester(HarvesterBase):
                         # 'license_url': 'http://opendefinition.org/licenses/cc-zero/',
                         # 'tags': ,
                         'resources': self._generate_resources_dict_array(resource),
-                        'groups': [],
+                        'groups': [project['project_info'].get('ckan_category')],
                         'extras': [
                                 ('level', 'Resource'),
                                 ('parent', project['project_info'].get('shortname'))
@@ -201,29 +221,34 @@ class SalsahHarvester(HarvesterBase):
                 'session': Session,
                 'user': self.config['user']
             }
-            log.debug(context)
+            
+            # Find or create the organization the dataset should get assigned to
+            data_dict = {
+                'permission': 'edit_group',
+                'id': munge_title_to_name(self.ORGANIZATION['de']['name']),
+                'name': munge_title_to_name(self.ORGANIZATION['de']['name']),
+                'title': self.ORGANIZATION['de']['name'],
+                'description': self.ORGANIZATION['de']['description'],
+                'extras': [
+                    {
+                        'key': 'website',
+                        'value': self.ORGANIZATION['de']['website']
+                    }
+                ]
+            }
+            try:
+                package_dict['owner_org'] = get_action(
+                    'organization_show')(context,
+                                         data_dict)['id']
+            except:
+                organization = get_action(
+                    'organization_create')(
+                    context,
+                    data_dict)
+                package_dict['owner_org'] = organization['id']
 
             # Find or create group the dataset should get assigned to
-            log.debug(package_dict['groups'])
-
-            group_ids = []
-            for group_name in package_dict['groups']:
-                data_dict = {
-                    'id': group_name,
-                    'name': munge_title_to_name(group_name),
-                    'title': group_name
-                }
-                try:
-                    group = get_action('group_show')(context, data_dict)
-                    log.info('found the group ' + group['id'])
-                except:
-                    log.info('got error with group_show')
-                    group = get_action('group_create')(context, data_dict)
-                    log.info('created the group ' + group['id'])
-                group_ids.append(group['id'])
-            return group_ids
-
-            log.debug('Found or created groups.')
+            self._find_or_create_groups(package_dict['groups'], context)
 
             # Insert or update the package
             package = model.Package.get(package_dict['id'])
