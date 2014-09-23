@@ -8,7 +8,7 @@ import logging
 
 from ckan import model
 from ckan.model import Session, Package
-from ckan.logic import get_action
+from ckan.logic import get_action, action
 from ckanext.harvest.model import HarvestObject
 from ckan.lib.munge import munge_title_to_name
 
@@ -69,23 +69,6 @@ class SalsahHarvester(HarvesterBase):
         except KeyError:
             log.error('Resource does not contain `%s`:\n%s', args[-1], pformat(resource))
             return ''
-
-    def _find_or_create_groups(self, context, groups):
-        group_ids = []
-        for group_name in groups:
-            data_dict = {
-                'id': group_name,
-                'name': munge_title_to_name(group_name),
-                'title': group_name
-            }
-            try:
-                group = get_action('group_show')(context, data_dict)
-                log.debug('group_show action went OK')
-            except:
-                group = get_action('group_create')(context, data_dict)
-                log.info('created the group ' + group['id'])
-            group_ids.append(group['id'])
-        return group_ids
 
     def _generate_resources_dict_array(self, resource):
         resource_list = []
@@ -221,7 +204,25 @@ class SalsahHarvester(HarvesterBase):
             log.debug(context)
 
             # Find or create group the dataset should get assigned to
-            package_dict['groups'] = [] #self._find_or_create_groups(context, package_dict['groups'])
+            log.debug(package_dict['groups'])
+
+            group_ids = []
+            for group_name in package_dict['groups']:
+                data_dict = {
+                    'id': group_name,
+                    'name': munge_title_to_name(group_name),
+                    'title': group_name
+                }
+                try:
+                    group = get_action('group_show')(context, data_dict)
+                    log.info('found the group ' + group['id'])
+                except:
+                    log.info('got error with group_show')
+                    group = get_action('group_create')(context, data_dict)
+                    log.info('created the group ' + group['id'])
+                group_ids.append(group['id'])
+            return group_ids
+
             log.debug('Found or created groups.')
 
             # Insert or update the package
