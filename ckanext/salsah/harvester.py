@@ -201,12 +201,17 @@ class SalsahHarvester(HarvesterBase):
             return True
         except Exception, e:
             log.exception(e)
+            self._save_object_error(
+                'Error in fetch stage: %s' % e,
+                harvest_object
+            )
 
     def import_stage(self, harvest_object):
         log.debug('In SalsahHarvester import_stage')
 
         if not harvest_object:
             log.error('No harvest object received')
+            self._save_object_error('No harvest object received')
             return False
 
 
@@ -265,6 +270,26 @@ class SalsahHarvester(HarvesterBase):
 
             Session.commit()
             
+            # Create relationship between package and parent
+            for extra in package_dict['extras']:
+                if extra[0] == 'parent':
+                    data_dict = {
+                        'subject': package_dict['id'],
+                        'object': extra[1],
+                        'type': 'child_of'
+                    }
+                    
+                    relationship = get_action('package_relationship_create')(
+                        context,
+                        data_dict
+                    )
+                    
+                    log.debug('Relationship created: %s' % str(relationship))
+            
         except Exception as e:
             log.exception(e)
+            self._save_object_error(
+                'Exception in import stage: %s' % e,
+                harvest_object
+            )
             raise
