@@ -42,9 +42,9 @@ class SalsahHarvester(HarvesterBase):
         }
     }
 
-    config = {
-        'user': u'harvest'
-    }
+    config = None
+    limit = 3
+    user = u'harvest'
 
     def info(self):
 
@@ -53,6 +53,19 @@ class SalsahHarvester(HarvesterBase):
             'title': 'SALSAH',
             'description': 'SALSAH Harvester'
         }
+
+    def _set_config(self,config_str):
+        if config_str:
+            self.config = json.loads(config_str)
+            if 'limit' in self.config:
+                self.limit = int(self.config['limit'])
+
+            log.debug('Using config: %r', self.config)
+        else:
+            self.config = {}
+
+    def _get_limit_param(self):
+        return '?limit=%s' % self.limit
 
     def _get(self, resource, *args):
         """
@@ -104,11 +117,18 @@ class SalsahHarvester(HarvesterBase):
     def gather_stage(self, harvest_job):
         log.debug('In SalsahHarvester gather_stage')
         ids = []
+        self._set_config(harvest_job.source.config)
+
+        # Get api url
+        base_url = harvest_job.source.url.rstrip('/')
+        base_api_url = base_url + self._get_limit_param()
+
         try:
-            req = urllib2.Request(self.API_URL)
+            log.debug('Gathering data from: %s.' % base_api_url)
+            req = urllib2.Request(base_api_url)
             handle = urllib2.urlopen(req)
         except urllib2.HTTPError, e:
-            log.error('HTTP Error accessing %s: %s.' % (self.API_URL, e.code))
+            log.error('HTTP Error accessing %s: %s.' % (base_api_url, e.code))
             return []
         else:
             projects = json.load(handle)['projects']
@@ -220,11 +240,11 @@ class SalsahHarvester(HarvesterBase):
             package_dict['id'] = harvest_object.guid
             package_dict['name'] = package_dict[u'datasetID']
 
-            user = model.User.get(self.config['user'])
+            user = model.User.get(self.user)
             context = {
                 'model': model,
                 'session': Session,
-                'user': self.config['user']
+                'user': self.user
             }
             
             # Find or create the organization the dataset should get assigned to
