@@ -20,8 +20,6 @@ class SalsahHarvester(HarvesterBase):
     SALSAH Harvester
     '''
 
-    API_URL = "http://salsah.org/api/ckan?limit=3"
-    
     ORGANIZATION = {
         'de': {
             'name': 'Digital Humanities Lab',
@@ -59,6 +57,8 @@ class SalsahHarvester(HarvesterBase):
             self.config = json.loads(config_str)
             if 'limit' in self.config:
                 self.limit = int(self.config['limit'])
+            if 'user' in self.config:
+                self.user = self.config['user']
 
             log.debug('Using config: %r', self.config)
         else:
