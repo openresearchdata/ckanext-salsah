@@ -144,7 +144,7 @@ class SalsahHarvester(HarvesterBase):
                 log.debug('adding ' + metadata['datasetID'] + ' to the queue')
                 ids.append(obj.id)
 
-                for resource in project['project_resources']:
+                for resource in project['project_datasets']:
                     pages = resource.get('pages', [])
                     for page in pages:
                         # do we add JSON resources for pages?
@@ -152,10 +152,10 @@ class SalsahHarvester(HarvesterBase):
 
                     metadata = {
                         'datasetID': self._get(resource, 'resid').zfill(8),
-                        'title': self._get(resource, 'dc:title', 'dokubib:titel'),
-                        'url': self._get(resource, 'salsah_url', 'salsah:uri'),
-                        # 'notes': self._get(resource, 'dc:description'),
-                        'author': self._get(resource, 'dc:creator', 'dokubib:urheber'),
+                        'title': self._get(resource, 'dc_title', 'dokubib_titel'),
+                        'url': self._get(resource, 'salsah_url', 'salsah_uri'),
+                        # 'notes': self._get(resource, 'dc_description'),
+                        'author': self._get(resource, 'dc_creator', 'dokubib_urheber'),
                         # 'maintainer': ,
                         # 'maintainer_email': ,
                         # 'license_id': 'cc-zero',
@@ -170,10 +170,10 @@ class SalsahHarvester(HarvesterBase):
                     }
 
                     if type(metadata['author']) == dict:
-                        if 'salsah:firstname' in metadata['author']:
-                            metadata['author'] = metadata['author']['salsah:lastname'] + ', ' + metadata['author']['salsah:firstname']
+                        if 'salsah_firstname' in metadata['author']:
+                            metadata['author'] = metadata['author']['salsah_lastname'] + ', ' + metadata['author']['salsah_firstname']
                         else:
-                            metadata['author'] = metadata['author']['salsah:lastname']
+                            metadata['author'] = metadata['author']['salsah_lastname']
 
                     pprint(metadata)
 
