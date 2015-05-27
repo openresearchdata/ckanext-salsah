@@ -85,12 +85,12 @@ class SalsahHarvester(HarvesterBase):
 
     def _generate_resources_dict_array(self, resource):
         resource_list = []
-        pages = resource.get('pages', [])
-        for page in pages:
+        files = resource.get('files', [])
+        for file in files:
             resource_list.append({
-                'name': self._get(page, 'incunabula:pagenum'),
-                'resource_type': 'page',
-                'url': self._get(page, 'salsah_url')
+                'name': self._get(file, 'incunabula_pagenum'),
+                'resource_type': 'file',
+                'url': self._get(file, 'salsah_url')
             })
         return resource_list
 
@@ -165,9 +165,9 @@ class SalsahHarvester(HarvesterBase):
                 ids.append(obj.id)
 
                 for resource in project['project_datasets']:
-                    pages = resource.get('pages', [])
-                    for page in pages:
-                        # do we add JSON resources for pages?
+                    files = resource.get('files', [])
+                    for file in files:
+                        # do we add JSON resources for files?
                         pass
 
                     metadata = {
