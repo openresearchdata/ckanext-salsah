@@ -87,11 +87,14 @@ class SalsahHarvester(HarvesterBase):
         resource_list = []
         files = resource.get('files', [])
         for file in files:
-            resource_list.append({
-                'name': self._get(file, 'incunabula_pagenum'),
+            resource_dict = {
+                'name': self._get(file, 'name'),
                 'resource_type': 'file',
                 'url': self._get(file, 'salsah_url')
-            })
+            }
+
+            resource_dict.update(file)
+            resource_list.append(resource_dict)
         return resource_list
 
     def _find_or_create_groups(self, groups, context):
