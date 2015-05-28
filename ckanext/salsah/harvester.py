@@ -90,7 +90,7 @@ class SalsahHarvester(HarvesterBase):
             resource_dict = {
                 'name': self._get(file, 'name'),
                 'resource_type': 'file',
-                'url': self._get(file, 'salsah_url')
+                'url': self._get(file, 'source_url')
             }
 
             resource_dict.update(file)
