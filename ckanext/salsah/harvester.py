@@ -20,8 +20,6 @@ class SalsahHarvester(HarvesterBase):
     SALSAH Harvester
     '''
 
-    API_URL = "http://salsah.org/api/ckan?limit=3"
-    
     ORGANIZATION = {
         'de': {
             'name': 'Digital Humanities Lab',
@@ -42,9 +40,9 @@ class SalsahHarvester(HarvesterBase):
         }
     }
 
-    config = {
-        'user': u'harvest'
-    }
+    config = None
+    limit = 3
+    user = u'harvest'
 
     def info(self):
 
@@ -53,6 +51,21 @@ class SalsahHarvester(HarvesterBase):
             'title': 'SALSAH',
             'description': 'SALSAH Harvester'
         }
+
+    def _set_config(self,config_str):
+        if config_str:
+            self.config = json.loads(config_str)
+            if 'limit' in self.config:
+                self.limit = int(self.config['limit'])
+            if 'user' in self.config:
+                self.user = self.config['user']
+
+            log.debug('Using config: %r', self.config)
+        else:
+            self.config = {}
+
+    def _get_limit_param(self):
+        return '?limit=%s' % self.limit
 
     def _get(self, resource, *args):
         """
@@ -72,13 +85,16 @@ class SalsahHarvester(HarvesterBase):
 
     def _generate_resources_dict_array(self, resource):
         resource_list = []
-        pages = resource.get('pages', [])
-        for page in pages:
-            resource_list.append({
-                'name': self._get(page, 'incunabula:pagenum'),
-                'resource_type': 'page',
-                'url': self._get(page, 'salsah_url')
-            })
+        files = resource.get('files', [])
+        for file in files:
+            resource_dict = {
+                'name': self._get(file, 'name'),
+                'resource_type': 'file',
+                'url': self._get(file, 'source_url')
+            }
+
+            resource_dict.update(file)
+            resource_list.append(resource_dict)
         return resource_list
 
     def _find_or_create_groups(self, groups, context):
@@ -104,11 +120,18 @@ class SalsahHarvester(HarvesterBase):
     def gather_stage(self, harvest_job):
         log.debug('In SalsahHarvester gather_stage')
         ids = []
+        self._set_config(harvest_job.source.config)
+
+        # Get api url
+        base_url = harvest_job.source.url.rstrip('/')
+        base_api_url = base_url + self._get_limit_param()
+
         try:
-            req = urllib2.Request(self.API_URL)
+            log.debug('Gathering data from: %s.' % base_api_url)
+            req = urllib2.Request(base_api_url)
             handle = urllib2.urlopen(req)
         except urllib2.HTTPError, e:
-            log.error('HTTP Error accessing %s: %s.' % (self.API_URL, e.code))
+            log.error('HTTP Error accessing %s: %s.' % (base_api_url, e.code))
             return []
         else:
             projects = json.load(handle)['projects']
@@ -144,18 +167,18 @@ class SalsahHarvester(HarvesterBase):
                 log.debug('adding ' + metadata['datasetID'] + ' to the queue')
                 ids.append(obj.id)
 
-                for resource in project['project_resources']:
-                    pages = resource.get('pages', [])
-                    for page in pages:
-                        # do we add JSON resources for pages?
+                for resource in project['project_datasets']:
+                    files = resource.get('files', [])
+                    for file in files:
+                        # do we add JSON resources for files?
                         pass
 
                     metadata = {
                         'datasetID': self._get(resource, 'resid').zfill(8),
-                        'title': self._get(resource, 'dc:title', 'dokubib:titel'),
-                        'url': self._get(resource, 'salsah_url', 'salsah:uri'),
-                        # 'notes': self._get(resource, 'dc:description'),
-                        'author': self._get(resource, 'dc:creator', 'dokubib:urheber'),
+                        'title': self._get(resource, 'dc_title', 'dokubib_titel'),
+                        'url': self._get(resource, 'salsah_url', 'salsah_uri'),
+                        # 'notes': self._get(resource, 'dc_description'),
+                        'author': self._get(resource, 'dc_creator', 'dokubib_urheber'),
                         # 'maintainer': ,
                         # 'maintainer_email': ,
                         # 'license_id': 'cc-zero',
@@ -170,10 +193,10 @@ class SalsahHarvester(HarvesterBase):
                     }
 
                     if type(metadata['author']) == dict:
-                        if 'salsah:firstname' in metadata['author']:
-                            metadata['author'] = metadata['author']['salsah:lastname'] + ', ' + metadata['author']['salsah:firstname']
+                        if 'salsah_firstname' in metadata['author']:
+                            metadata['author'] = metadata['author']['salsah_lastname'] + ', ' + metadata['author']['salsah_firstname']
                         else:
-                            metadata['author'] = metadata['author']['salsah:lastname']
+                            metadata['author'] = metadata['author']['salsah_lastname']
 
                     pprint(metadata)
 
@@ -220,11 +243,11 @@ class SalsahHarvester(HarvesterBase):
             package_dict['id'] = harvest_object.guid
             package_dict['name'] = package_dict[u'datasetID']
 
-            user = model.User.get(self.config['user'])
+            user = model.User.get(self.user)
             context = {
                 'model': model,
                 'session': Session,
-                'user': self.config['user']
+                'user': self.user
             }
             
             # Find or create the organization the dataset should get assigned to
