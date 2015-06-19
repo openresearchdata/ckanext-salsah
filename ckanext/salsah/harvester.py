@@ -83,10 +83,9 @@ class SalsahHarvester(HarvesterBase):
             log.error('Resource does not contain `%s`:\n%s', args[-1], pformat(resource))
             return ''
 
-    def _generate_resources_dict_array(self, resource):
+    def _generate_resources_dict_list(self, files_list):
         resource_list = []
-        files = resource.get('files', [])
-        for file in files:
+        for file in files_list:
             resource_dict = {
                 'name': self._get(file, 'name'),
                 'resource_type': 'file',
@@ -96,6 +95,13 @@ class SalsahHarvester(HarvesterBase):
             resource_dict.update(file)
             resource_list.append(resource_dict)
         return resource_list
+
+    def _generate_tags_dict_list(self, tags_list):
+        tags_list = []
+        for tag in tags_list:
+            tag_dict = { 'name': tag }
+            tags_list.append(tag_dict)
+        return tags_list
 
     def _find_or_create_groups(self, groups, context):
         log.debug('Group names: %s' % groups)
@@ -148,7 +154,7 @@ class SalsahHarvester(HarvesterBase):
                     # 'maintainer-email': ,
                     # 'license_id': ,
                     # 'license_url': ,
-                    # 'tags': ,
+                    'tags': self._generate_tags_dict_list(project['project_info'].get('ckan_tags')),
                     # 'resources': ,
                     'groups': [project['project_info'].get('ckan_category')],
                     'extras': [
@@ -168,10 +174,6 @@ class SalsahHarvester(HarvesterBase):
                 ids.append(obj.id)
 
                 for resource in project['project_datasets']:
-                    files = resource.get('files', [])
-                    for file in files:
-                        # do we add JSON resources for files?
-                        pass
 
                     metadata = {
                         'datasetID': self._get(resource, 'resid').zfill(8),
@@ -183,8 +185,8 @@ class SalsahHarvester(HarvesterBase):
                         # 'maintainer_email': ,
                         # 'license_id': 'cc-zero',
                         # 'license_url': 'http://opendefinition.org/licenses/cc-zero/',
-                        # 'tags': ,
-                        'resources': self._generate_resources_dict_array(resource),
+                        'tags': self._generate_tags_dict_list(resource.get('ckan_tags')),
+                        'resources': self._generate_resources_dict_list(resource.get('files')),
                         'groups': [project['project_info'].get('ckan_category')],
                         'extras': [
                                 ('level', 'Resource'),
