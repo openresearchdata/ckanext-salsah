@@ -157,7 +157,11 @@ class SalsahHarvester(HarvesterBase):
                     # 'license_id': ,
                     # 'license_url': ,
                     'tags': [munge_tag(tag[:100]) for tag in self._get(project['project_info'], 'ckan_tags')],
-                    # 'resources': ,
+                    'resources': [{
+                        'name': 'SALSAH API',
+                        'resource_type': 'api',
+                        'url': harvest_job.source.url.rstrip('/') + '?project=' + self._get(project['project_info'], 'shortname')
+                    }],
                     'groups': [self._get(project['project_info'], 'longname')],
                     'extras': [
                         ('level', 'Project')
