@@ -86,9 +86,15 @@ class SalsahHarvester(HarvesterBase):
     def _generate_resources_dict_list(self, files_list):
         resource_list = []
         for file in files_list:
+            if self._get(file, 'data_mimetype') != '':
+                mimetype = self._get(file, 'data_mimetype')
+            else:
+                mimetype = 'image/jpeg'
             resource_dict = {
                 'name': self._get(file, 'ckan_title'),
                 'resource_type': 'file',
+                'mimetype': mimetype,
+                'format': 'JPEG',
                 'url': self._get(file, 'data_url')
             }
 
@@ -160,6 +166,7 @@ class SalsahHarvester(HarvesterBase):
                     'resources': [{
                         'name': 'SALSAH API',
                         'resource_type': 'api',
+                        'format': 'JSON',
                         'url': harvest_job.source.url.rstrip('/') + '?project=' + self._get(project['project_info'], 'shortname')
                     }],
                     'groups': [self._get(project['project_info'], 'longname')],
