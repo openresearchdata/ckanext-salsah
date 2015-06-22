@@ -10,7 +10,7 @@ from ckan import model
 from ckan.model import Session, Package
 from ckan.logic import get_action, action
 from ckanext.harvest.model import HarvestObject
-from ckan.lib.munge import munge_title_to_name
+from ckan.lib.munge import munge_title_to_name, munge_tag
 
 log = logging.getLogger(__name__)
 
@@ -156,9 +156,9 @@ class SalsahHarvester(HarvesterBase):
                     # 'maintainer-email': ,
                     # 'license_id': ,
                     # 'license_url': ,
-                    'tags': self._generate_tags_dict_list(self._get(project['project_info'], 'ckan_tags')),
+                    'tags': [munge_tag(tag[:100]) for tag in self._get(project['project_info'], 'ckan_tags')],
                     # 'resources': ,
-                    'groups': [self._get(project['project_info'], 'ckan_category')],
+                    'groups': [self._get(project['project_info'], 'longname')],
                     'extras': [
                         ('level', 'Project')
                     ]
@@ -179,17 +179,17 @@ class SalsahHarvester(HarvesterBase):
 
                     metadata = {
                         'datasetID': self._get(resource, 'resid').zfill(8),
-                        'title': self._get(resource, 'dc_title', 'dokubib_titel'),
+                        'title': self._get(resource, 'ckan_title'),
                         'url': self._get(resource, 'salsah_url', 'salsah_uri'),
-                        # 'notes': self._get(resource, 'dc_description'),
+                        'notes': self._get(resource, 'ckan_description'),
                         'author': self._get(resource, 'dc_creator', 'dokubib_urheber'),
                         # 'maintainer': ,
                         # 'maintainer_email': ,
                         # 'license_id': 'cc-zero',
                         # 'license_url': 'http://opendefinition.org/licenses/cc-zero/',
-                        'tags': self._generate_tags_dict_list(self._get(resource, 'ckan_tags')),
+                        'tags': [munge_tag(tag[:100]) for tag in self._get(resource, 'ckan_tags')],
                         'resources': self._generate_resources_dict_list(self._get(resource, 'files')),
-                        'groups': [self._get(project['project_info'], 'ckan_category')],
+                        'groups': [self._get(project['project_info'], 'longname')],
                         'extras': [
                                 ('level', 'Resource'),
                                 ('parent', self._get(project['project_info'], 'shortname'))
@@ -253,7 +253,7 @@ class SalsahHarvester(HarvesterBase):
                 'session': Session,
                 'user': self.user
             }
-            
+
             # Find or create the organization the dataset should get assigned to
             data_dict = {
                 'permission': 'edit_group',
@@ -296,7 +296,7 @@ class SalsahHarvester(HarvesterBase):
             )
 
             Session.commit()
-            
+
             # Create relationship between package and parent
             for extra in package_dict['extras']:
                 if extra[0] == 'parent':
@@ -305,14 +305,14 @@ class SalsahHarvester(HarvesterBase):
                         'object': extra[1],
                         'type': 'child_of'
                     }
-                    
+
                     relationship = get_action('package_relationship_create')(
                         context,
                         data_dict
                     )
-                    
+
                     log.debug('Relationship created: %s' % str(relationship))
-            
+
         except Exception as e:
             log.exception(e)
             self._save_object_error(
