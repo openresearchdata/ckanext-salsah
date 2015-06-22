@@ -87,9 +87,9 @@ class SalsahHarvester(HarvesterBase):
         resource_list = []
         for file in files_list:
             resource_dict = {
-                'name': self._get(file, 'name'),
+                'name': self._get(file, 'ckan_title'),
                 'resource_type': 'file',
-                'url': self._get(file, 'source_url')
+                'url': self._get(file, 'data_url')
             }
 
             resource_dict.update(file)
@@ -97,11 +97,13 @@ class SalsahHarvester(HarvesterBase):
         return resource_list
 
     def _generate_tags_dict_list(self, tags_list):
-        tags_list = []
+        tags_dic_list = []
         for tag in tags_list:
-            tag_dict = { 'name': tag }
-            tags_list.append(tag_dict)
-        return tags_list
+            tag_dict = {
+                'name': tag
+            }
+            tags_dic_list.append(tag_dict)
+        return tags_dic_list
 
     def _find_or_create_groups(self, groups, context):
         log.debug('Group names: %s' % groups)
@@ -145,18 +147,18 @@ class SalsahHarvester(HarvesterBase):
                 log.debug(project['project_info'])
                 # add dataset for project
                 metadata = {
-                    'datasetID': project['project_info'].get('shortname'),
-                    'title': project['project_info'].get('longname'),
+                    'datasetID': self._get(project['project_info'], 'shortname'),
+                    'title': self._get(project['project_info'], 'longname'),
                     'url': 'http://salsah.org/',
-                    'notes': "This project is part of SALSAH.",
+                    'notes': 'This project is part of SALSAH.',
                     # 'author': ,
                     # 'maintainer': ,
                     # 'maintainer-email': ,
                     # 'license_id': ,
                     # 'license_url': ,
-                    'tags': self._generate_tags_dict_list(project['project_info'].get('ckan_tags')),
+                    'tags': self._generate_tags_dict_list(self._get(project['project_info'], 'ckan_tags')),
                     # 'resources': ,
-                    'groups': [project['project_info'].get('ckan_category')],
+                    'groups': [self._get(project['project_info'], 'ckan_category')],
                     'extras': [
                         ('level', 'Project')
                     ]
@@ -173,7 +175,7 @@ class SalsahHarvester(HarvesterBase):
                 log.debug('adding ' + metadata['datasetID'] + ' to the queue')
                 ids.append(obj.id)
 
-                for resource in project['project_datasets']:
+                for resource in self._get(project, 'project_datasets'):
 
                     metadata = {
                         'datasetID': self._get(resource, 'resid').zfill(8),
@@ -185,12 +187,12 @@ class SalsahHarvester(HarvesterBase):
                         # 'maintainer_email': ,
                         # 'license_id': 'cc-zero',
                         # 'license_url': 'http://opendefinition.org/licenses/cc-zero/',
-                        'tags': self._generate_tags_dict_list(resource.get('ckan_tags')),
-                        'resources': self._generate_resources_dict_list(resource.get('files')),
-                        'groups': [project['project_info'].get('ckan_category')],
+                        'tags': self._generate_tags_dict_list(self._get(resource, 'ckan_tags')),
+                        'resources': self._generate_resources_dict_list(self._get(resource, 'files')),
+                        'groups': [self._get(project['project_info'], 'ckan_category')],
                         'extras': [
                                 ('level', 'Resource'),
-                                ('parent', project['project_info'].get('shortname'))
+                                ('parent', self._get(project['project_info'], 'shortname'))
                         ]
                     }
 
