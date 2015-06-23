@@ -41,7 +41,7 @@ class SalsahHarvester(HarvesterBase):
     }
 
     config = None
-    limit = 3
+    limit = 0
     user = u'harvest'
 
     def info(self):
@@ -65,7 +65,10 @@ class SalsahHarvester(HarvesterBase):
             self.config = {}
 
     def _get_limit_param(self):
-        return '?limit=%s' % self.limit
+        limit = ''
+        if self.limit > 0:
+            limit = '?limit=%s' % self.limit
+        return limit
 
     def _get(self, resource, *args):
         """
@@ -209,9 +212,9 @@ class SalsahHarvester(HarvesterBase):
 
                     if type(metadata['author']) == dict:
                         if 'salsah_firstname' in metadata['author']:
-                            metadata['author'] = metadata['author']['salsah_lastname'] + ', ' + metadata['author']['salsah_firstname']
+                            metadata['author'] = self._get(metadata['author'], 'salsah_lastname') + ', ' + self._get(metadata['author'], 'salsah_firstname')
                         else:
-                            metadata['author'] = metadata['author']['salsah_lastname']
+                            metadata['author'] = self._get(metadata['author'], 'salsah_lastname')
 
                     pprint(metadata)
 
