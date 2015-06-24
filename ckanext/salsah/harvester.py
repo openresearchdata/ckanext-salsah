@@ -10,7 +10,7 @@ from ckan import model
 from ckan.model import Session, Package
 from ckan.logic import get_action, action
 from ckanext.harvest.model import HarvestObject
-from ckan.lib.munge import munge_title_to_name
+from ckan.lib.munge import munge_title_to_name, munge_tag
 
 log = logging.getLogger(__name__)
 
@@ -41,7 +41,7 @@ class SalsahHarvester(HarvesterBase):
     }
 
     config = None
-    limit = 3
+    limit = 0
     user = u'harvest'
 
     def info(self):
@@ -65,7 +65,10 @@ class SalsahHarvester(HarvesterBase):
             self.config = {}
 
     def _get_limit_param(self):
-        return '?limit=%s' % self.limit
+        limit = ''
+        if self.limit > 0:
+            limit = '?limit=%s' % self.limit
+        return limit
 
     def _get(self, resource, *args):
         """
@@ -83,19 +86,33 @@ class SalsahHarvester(HarvesterBase):
             log.error('Resource does not contain `%s`:\n%s', args[-1], pformat(resource))
             return ''
 
-    def _generate_resources_dict_array(self, resource):
+    def _generate_resources_dict_list(self, files_list):
         resource_list = []
-        files = resource.get('files', [])
-        for file in files:
+        for file in files_list:
+            if self._get(file, 'data_mimetype') != '':
+                mimetype = self._get(file, 'data_mimetype')
+            else:
+                mimetype = 'image/jpeg'
             resource_dict = {
-                'name': self._get(file, 'name'),
+                'name': self._get(file, 'ckan_title'),
                 'resource_type': 'file',
-                'url': self._get(file, 'source_url')
+                'mimetype': mimetype,
+                'format': 'JPEG',
+                'url': self._get(file, 'data_url')
             }
 
             resource_dict.update(file)
             resource_list.append(resource_dict)
         return resource_list
+
+    def _generate_tags_dict_list(self, tags_list):
+        tags_dic_list = []
+        for tag in tags_list:
+            tag_dict = {
+                'name': tag
+            }
+            tags_dic_list.append(tag_dict)
+        return tags_dic_list
 
     def _find_or_create_groups(self, groups, context):
         log.debug('Group names: %s' % groups)
@@ -139,18 +156,23 @@ class SalsahHarvester(HarvesterBase):
                 log.debug(project['project_info'])
                 # add dataset for project
                 metadata = {
-                    'datasetID': project['project_info'].get('shortname'),
-                    'title': project['project_info'].get('longname'),
+                    'datasetID': self._get(project['project_info'], 'shortname'),
+                    'title': self._get(project['project_info'], 'longname'),
                     'url': 'http://salsah.org/',
-                    'notes': "This project is part of SALSAH.",
+                    'notes': 'This project is part of SALSAH.',
                     # 'author': ,
                     # 'maintainer': ,
                     # 'maintainer-email': ,
                     # 'license_id': ,
                     # 'license_url': ,
-                    # 'tags': ,
-                    # 'resources': ,
-                    'groups': [project['project_info'].get('ckan_category')],
+                    'tags': [munge_tag(tag[:100]) for tag in self._get(project['project_info'], 'ckan_tags')],
+                    'resources': [{
+                        'name': 'SALSAH API',
+                        'resource_type': 'api',
+                        'format': 'JSON',
+                        'url': harvest_job.source.url.rstrip('/') + '?project=' + self._get(project['project_info'], 'shortname')
+                    }],
+                    'groups': [self._get(project['project_info'], 'longname')],
                     'extras': [
                         ('level', 'Project')
                     ]
@@ -167,36 +189,32 @@ class SalsahHarvester(HarvesterBase):
                 log.debug('adding ' + metadata['datasetID'] + ' to the queue')
                 ids.append(obj.id)
 
-                for resource in project['project_datasets']:
-                    files = resource.get('files', [])
-                    for file in files:
-                        # do we add JSON resources for files?
-                        pass
+                for resource in self._get(project, 'project_datasets'):
 
                     metadata = {
                         'datasetID': self._get(resource, 'resid').zfill(8),
-                        'title': self._get(resource, 'dc_title', 'dokubib_titel'),
+                        'title': self._get(resource, 'ckan_title'),
                         'url': self._get(resource, 'salsah_url', 'salsah_uri'),
-                        # 'notes': self._get(resource, 'dc_description'),
+                        'notes': self._get(resource, 'ckan_description'),
                         'author': self._get(resource, 'dc_creator', 'dokubib_urheber'),
                         # 'maintainer': ,
                         # 'maintainer_email': ,
                         # 'license_id': 'cc-zero',
                         # 'license_url': 'http://opendefinition.org/licenses/cc-zero/',
-                        # 'tags': ,
-                        'resources': self._generate_resources_dict_array(resource),
-                        'groups': [project['project_info'].get('ckan_category')],
+                        'tags': [munge_tag(tag[:100]) for tag in self._get(resource, 'ckan_tags')],
+                        'resources': self._generate_resources_dict_list(self._get(resource, 'files')),
+                        'groups': [self._get(project['project_info'], 'longname')],
                         'extras': [
                                 ('level', 'Resource'),
-                                ('parent', project['project_info'].get('shortname'))
+                                ('parent', self._get(project['project_info'], 'shortname'))
                         ]
                     }
 
                     if type(metadata['author']) == dict:
                         if 'salsah_firstname' in metadata['author']:
-                            metadata['author'] = metadata['author']['salsah_lastname'] + ', ' + metadata['author']['salsah_firstname']
+                            metadata['author'] = self._get(metadata['author'], 'salsah_lastname') + ', ' + self._get(metadata['author'], 'salsah_firstname')
                         else:
-                            metadata['author'] = metadata['author']['salsah_lastname']
+                            metadata['author'] = self._get(metadata['author'], 'salsah_lastname')
 
                     pprint(metadata)
 
@@ -249,7 +267,7 @@ class SalsahHarvester(HarvesterBase):
                 'session': Session,
                 'user': self.user
             }
-            
+
             # Find or create the organization the dataset should get assigned to
             data_dict = {
                 'permission': 'edit_group',
@@ -292,7 +310,7 @@ class SalsahHarvester(HarvesterBase):
             )
 
             Session.commit()
-            
+
             # Create relationship between package and parent
             for extra in package_dict['extras']:
                 if extra[0] == 'parent':
@@ -301,14 +319,14 @@ class SalsahHarvester(HarvesterBase):
                         'object': extra[1],
                         'type': 'child_of'
                     }
-                    
+
                     relationship = get_action('package_relationship_create')(
                         context,
                         data_dict
                     )
-                    
+
                     log.debug('Relationship created: %s' % str(relationship))
-            
+
         except Exception as e:
             log.exception(e)
             self._save_object_error(
