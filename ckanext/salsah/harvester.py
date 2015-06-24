@@ -118,18 +118,21 @@ class SalsahHarvester(HarvesterBase):
         log.debug('Group names: %s' % groups)
         group_ids = []
         for group_name in groups:
-            data_dict = {
-                'id': group_name,
-                'name': munge_title_to_name(group_name),
-                'title': group_name
-            }
             try:
-                group = get_action('group_show')(context, data_dict)
-                log.info('found the group ' + group['id'])
-            except:
-                group = get_action('group_create')(context, data_dict)
-                log.info('created the group ' + group['id'])
-            group_ids.append(group['id'])
+                data_dict = {
+                    'id': group_name,
+                    'name': munge_title_to_name(group_name),
+                    'title': group_name
+                }
+                try:
+                    group = get_action('group_show')(context, data_dict)
+                    log.info('found the group ' + group['id'])
+                except:
+                    group = get_action('group_create')(context, data_dict)
+                    log.info('created the group ' + group['id'])
+                group_ids.append(group['id'])
+            except TypeError:
+                pass
 
         log.debug('Group ids: %s' % group_ids)
         return group_ids
