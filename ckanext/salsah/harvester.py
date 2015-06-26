@@ -342,6 +342,8 @@ class SalsahHarvester(HarvesterBase):
 
                     log.debug('Relationship created: %s' % str(relationship))
 
+            return True
+
         except Exception as e:
             log.exception(e)
             self._save_object_error(
