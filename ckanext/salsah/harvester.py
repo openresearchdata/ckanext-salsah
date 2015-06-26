@@ -152,8 +152,14 @@ class SalsahHarvester(HarvesterBase):
             handle = urllib2.urlopen(req)
         except urllib2.HTTPError, e:
             log.error('HTTP Error accessing %s: %s.' % (base_api_url, e.code))
+            self._save_gather_error(
+                'Unable to get content from URL %s: %s / %s'
+                % (base_api_url, str(e), traceback.format_exc()),
+                harvest_job
+            )
             return []
-        else:
+
+        try:
             projects = json.load(handle)['projects']
             for project in projects:
                 log.debug(project['project_info'])
@@ -227,7 +233,15 @@ class SalsahHarvester(HarvesterBase):
                     obj.save()
                     log.debug('adding ' + metadata['datasetID'] + ' to the queue')
                     ids.append(obj.id) 
-        return ids
+            return ids
+        except Exception, e:
+            log.exception(e)
+            self._save_gather_error(
+                'Unable to process data from: %s: %s / %s'
+                % (base_api_url, str(e), traceback.format_exc()),
+                harvest_job
+            )
+            return []
 
     def fetch_stage(self, harvest_object):
         log.debug('In SalsahHarvester fetch_stage')
@@ -247,6 +261,7 @@ class SalsahHarvester(HarvesterBase):
                 'Error in fetch stage: %s' % e,
                 harvest_object
             )
+            return False
 
     def import_stage(self, harvest_object):
         log.debug('In SalsahHarvester import_stage')
@@ -255,7 +270,6 @@ class SalsahHarvester(HarvesterBase):
             log.error('No harvest object received')
             self._save_object_error('No harvest object received')
             return False
-
 
         try:
             package_dict = json.loads(harvest_object.content)
@@ -334,4 +348,4 @@ class SalsahHarvester(HarvesterBase):
                 'Exception in import stage: %s' % e,
                 harvest_object
             )
-            raise
+            return False
